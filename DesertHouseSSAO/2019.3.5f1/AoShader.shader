@@ -76,7 +76,7 @@ Shader "ImageEffect/SSAO"
 		//获取像素相机空间法线，法线z方向相对于相机为负（所以需要乘以-1置反），并处理成单位向量
 		viewNormal = normalize(viewNormal) * float3(1, 1, -1);
 
-		//铺平4x4大小的纹理
+		//在屏幕上平铺4x4大小的纹理
 		float2 noiseScale = _ScreenParams.xy / 4.0;
 		float2 noiseUV = i.uv * noiseScale;
 		//randvec法线半球的随机向量
