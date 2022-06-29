@@ -18,8 +18,8 @@ Shader "ImageEffect/SSAO"
     {
         float2 uv : TEXCOORD0;
         float4 vertex : SV_POSITION;
-		float3 viewVec : TEXCOORD1;
-		float3 viewRay : TEXCOORD2;
+	float3 viewVec : TEXCOORD1;
+	float3 viewRay : TEXCOORD2;
     };
 
 	#define MAX_SAMPLE_KERNEL_COUNT 64
@@ -33,25 +33,28 @@ Shader "ImageEffect/SSAO"
 	float4 _SampleKernelArray[MAX_SAMPLE_KERNEL_COUNT];
 	float _SampleKernelCount;
 	float _SampleKeneralRadius;
+	//用于消除平面自阴影
 	float _DepthBiasValue;
+	//用于修正错误遮蔽
 	float _RangeStrength;
+	//用于调节AO强度
 	float _AOStrength;
     v2f vert_Ao (appdata v)
     {
         v2f o;
-		UNITY_INITIALIZE_OUTPUT(v2f, o);
+	//UNITY_INITIALIZE_OUTPUT(v2f, o);
         o.vertex = UnityObjectToClipPos(v.vertex);
         o.uv = v.uv;
 		
-		//计算相机空间中的像素方向（相机到像素的方向）
-		//https://zhuanlan.zhihu.com/p/92315967
-		//屏幕纹理坐标
-		float4 screenPos = ComputeScreenPos(o.vertex);
-		// NDC position
-		float4 ndcPos = (screenPos / screenPos.w) * 2 - 1;
-		// 计算至远屏幕方向
-		float3 clipVec = float3(ndcPos.x, ndcPos.y, 1.0) * _ProjectionParams.z;
-		o.viewVec = mul(unity_CameraInvProjection, clipVec.xyzz).xyz;
+	//计算相机空间中的像素方向（相机到像素的方向）
+	//https://zhuanlan.zhihu.com/p/92315967
+	//屏幕纹理坐标
+	float4 screenPos = ComputeScreenPos(o.vertex);
+	// NDC position
+	float4 ndcPos = (screenPos / screenPos.w) * 2 - 1;
+	// 计算至远屏幕方向
+	float3 clipVec = float3(ndcPos.x, ndcPos.y, 1.0) * _ProjectionParams.z;
+	o.viewVec = mul(unity_CameraInvProjection, clipVec.xyzz).xyz;
         return o;
     }
 
@@ -61,19 +64,19 @@ Shader "ImageEffect/SSAO"
         //采样屏幕纹理
         fixed4 col = tex2D(_MainTex, i.uv);
 
-		//采样获得深度值和法线值
+		//采样获得相机空间的深度值和法线值
 		float3 viewNormal;
 		float linear01Depth;
 		float4 depthnormal = tex2D(_CameraDepthNormalsTexture,i.uv);
 		DecodeDepthNormal(depthnormal,linear01Depth,viewNormal);
 
-		//获取像素相机屏幕坐标位置
+		//获取像素在相机空间的位置
 		float3 viewPos = linear01Depth * i.viewVec;
 
-		//获取像素相机屏幕法线，法相z方向相对于相机为负（so 需要乘以-1置反），并处理成单位向量
+		//获取像素相机空间法线，法线z方向相对于相机为负（所以需要乘以-1置反），并处理成单位向量
 		viewNormal = normalize(viewNormal) * float3(1, 1, -1);
 
-		//铺平纹理
+		//铺平4x4大小的纹理
 		float2 noiseScale = _ScreenParams.xy / 4.0;
 		float2 noiseUV = i.uv * noiseScale;
 		//randvec法线半球的随机向量
@@ -91,11 +94,11 @@ Shader "ImageEffect/SSAO"
 		//https://blog.csdn.net/qq_39300235/article/details/102460405
 
 		for(int i=0;i<sampleCount;i++){
-			//随机向量，转化至法线切线空间中
+			//随机向量，转换至法线切线空间中
 			float3 randomVec = mul(_SampleKernelArray[i].xyz,TBN);
 			
 			//ao权重
-			float weight = smoothstep(0,0.2,length(randomVec.xy));
+			float weight = smoothstep(0.2,0,length(randomVec.xy));
 			
 			//计算随机法线半球后的向量
 			float3 randomPos = viewPos + randomVec * _SampleKeneralRadius;
@@ -117,6 +120,7 @@ Shader "ImageEffect/SSAO"
 		}
 
 		ao = ao/sampleCount;
+		//_AOStrength = [0,1]，注意这里为什么是1-ao，因为黑色值为0，白色值为1
 		ao = max(0.0, 1 - ao * _AOStrength);
 		return float4(ao,ao,ao,1);
     }
@@ -136,6 +140,7 @@ Shader "ImageEffect/SSAO"
 
 	half CompareNormal(float3 nor1,float3 nor2)
 	{
+		//_BilaterFilterFactor = [1.0, 0.8]
 		return smoothstep(_BilaterFilterFactor,1.0,dot(nor1,nor2));
 	}
 	
