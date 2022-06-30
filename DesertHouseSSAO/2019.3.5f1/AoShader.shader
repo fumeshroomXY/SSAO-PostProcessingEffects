@@ -19,7 +19,7 @@ Shader "ImageEffect/SSAO"
         float2 uv : TEXCOORD0;
         float4 vertex : SV_POSITION;
 	float3 viewVec : TEXCOORD1;
-	float3 viewRay : TEXCOORD2;
+	//float3 viewRay : TEXCOORD2;
     };
 
 	#define MAX_SAMPLE_KERNEL_COUNT 64
