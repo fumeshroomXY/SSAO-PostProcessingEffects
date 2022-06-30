@@ -94,8 +94,8 @@ Shader "ImageEffect/SSAO"
 		//https://blog.csdn.net/qq_39300235/article/details/102460405
 
 		for(int i=0;i<sampleCount;i++){
-			//随机向量，转换至法线切线空间中
-			float3 randomVec = mul(_SampleKernelArray[i].xyz,TBN);
+			//随机向量，从切线空间转换到相机空间
+			float3 randomVec = mul(TBN, _SampleKernelArray[i].xyz);
 			
 			//ao权重
 			float weight = smoothstep(0.2,0,length(randomVec.xy));
