@@ -18,7 +18,7 @@ Shader "AO/ScreenSpaceAOEffect"
 	{
 		float2 uv : TEXCOORD0;
 		float4 vertex : SV_POSITION;
-		//viewRay的作用是什么？
+		//viewRay表示相机空间下着色点的位置
 		float3 viewRay : TEXCOORD1;
 	};
 
@@ -40,15 +40,15 @@ Shader "AO/ScreenSpaceAOEffect"
 
 	float3 GetNormal(float2 uv)
 	{
-		float4 cdn = tex2D(_CameraDepthNormalsTexture, uv);
+		float4 cdn = tex2D(_CameraDepthNormalsTexture, uv);  //使用当前像素的纹理坐标对深度和法线进行采样
 		//返回视角空间下的法线信息
-		return DecodeViewNormalStereo(cdn);
+		return DecodeViewNormalStereo(cdn);  //注意这个函数得到的法线信息直接是视角空间下的
 	}
 
 	half CompareNormal(float3 normal1, float3 normal2)
 	{
-		//作用？
-		return smoothstep(_BilaterFilterFactor, 1.0, dot(normal1, normal2));
+		////_BilaterFilterFactor = [1.0, 0.8]
+		return smoothstep(_BilaterFilterFactor, 1.0, dot(normal1, normal2));   
 	}
 
 	v2f vert_ao(appdata v)
@@ -57,7 +57,7 @@ Shader "AO/ScreenSpaceAOEffect"
 		o.vertex = UnityObjectToClipPos(v.vertex);  //从模型空间转换到齐次裁剪空间，也就是透视除法之前的坐标
 		o.uv = v.uv;    //深度纹理的uv坐标
 		float4 clipPos = float4(v.uv * 2 - 1.0, 1.0, 1.0);   //这句的作用是？
-		float4 viewRay = mul(_InverseProjectionMatrix, clipPos);
+		float4 viewRay = mul(_InverseProjectionMatrix, clipPos);  //将屏幕像素对应在摄像机远平面（Far plane）的点转换到剪裁空间（Clip space）。
 		o.viewRay = viewRay.xyz / viewRay.w;
 		return o;
 	}
@@ -71,7 +71,7 @@ Shader "AO/ScreenSpaceAOEffect"
 
 		float4 cdn = tex2D(_CameraDepthNormalsTexture, i.uv);
 		DecodeDepthNormal(cdn, linear01Depth, viewNormal); //视角空间下[0,1]范围内的线性深度值和视角空间下的法线信息
-		float3 viewPos = linear01Depth * i.viewRay;	  //？
+		float3 viewPos = linear01Depth * i.viewRay;	  //得到着色点在视角空间的位置
 		viewNormal = normalize(viewNormal) * float3(1, 1, -1);   //？
 
 		int sampleCount = _SampleKernelCount;
@@ -90,13 +90,13 @@ Shader "AO/ScreenSpaceAOEffect"
 			float randomDepth;
 			float3 randomNormal;
 			float4 rcdn = tex2D(_CameraDepthNormalsTexture, rscreenPos);
-			DecodeDepthNormal(rcdn, randomDepth, randomNormal);
-			float range = abs(randomDepth - linear01Depth) * _ProjectionParams.z < _SampleKeneralRadius ? 1.0 : 0.0;   //_ProjectionParams.z 为 zFar
+			DecodeDepthNormal(rcdn, randomDepth, randomNormal);                            //采样点的深度和着色点的深度比较
+			float range = abs(randomDepth - linear01Depth) * _ProjectionParams.z < _SampleKeneralRadius ? 1.0 : 0.0; //_ProjectionParams.z 为 zFar，避免错误遮蔽
 			float ao = randomDepth + _DepthBiasValue < linear01Depth ? 1.0 : 0.0;   //_DepthBiasValue = [0,0.002f]
 			oc += ao * range;
 		}
 		oc /= sampleCount;
-		oc = max(0.0, 1 - oc * _AOStrength);
+		oc = max(0.0, 1 - oc * _AOStrength);  //0代表全黑，1代表全白，oc取全黑或ao两者中较亮的值
 
 		col.rgb = oc;
 		return col;
@@ -114,7 +114,7 @@ Shader "AO/ScreenSpaceAOEffect"
 		float2 uv2a = i.uv - 3.0 * delta;
 		float2 uv2b = i.uv + 3.0 * delta;
 
-		float3 normal = GetNormal(uv);
+		float3 normal = GetNormal(uv);  //这里得到的法线信息都是视角空间下的
 		float3 normal0a = GetNormal(uv0a);
 		float3 normal0b = GetNormal(uv0b);
 		float3 normal1a = GetNormal(uv1a);
@@ -130,8 +130,8 @@ Shader "AO/ScreenSpaceAOEffect"
 		fixed4 col2a = tex2D(_MainTex, uv2a);
 		fixed4 col2b = tex2D(_MainTex, uv2b);
 
-		half w = 0.37004405286;
-		half w0a = CompareNormal(normal, normal0a) * 0.31718061674;
+		half w = 0.37004405286;   //7*7的高斯卷积核
+		half w0a = CompareNormal(normal, normal0a) * 0.31718061674;  //输入的两个normal，越垂直结果就越接近于0，越平行就越接近于1
 		half w0b = CompareNormal(normal, normal0b) * 0.31718061674;
 		half w1a = CompareNormal(normal, normal1a) * 0.19823788546;
 		half w1b = CompareNormal(normal, normal1b) * 0.19823788546;
@@ -139,7 +139,7 @@ Shader "AO/ScreenSpaceAOEffect"
 		half w2b = CompareNormal(normal, normal2b) * 0.11453744493;
 
 		half3 result;
-		result = w * col.rgb;
+		result = w * col.rgb;   //越平行就越不是边缘，就可以模糊；越不平行就越是边缘，就不需要模糊
 		result += w0a * col0a.rgb;
 		result += w0b * col0b.rgb;
 		result += w1a * col1a.rgb;
