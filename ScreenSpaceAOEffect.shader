@@ -56,7 +56,7 @@ Shader "AO/ScreenSpaceAOEffect"
 		v2f o;
 		o.vertex = UnityObjectToClipPos(v.vertex);  //从模型空间转换到齐次裁剪空间，也就是透视除法之前的坐标
 		o.uv = v.uv;    //深度纹理的uv坐标
-		float4 clipPos = float4(v.uv * 2 - 1.0, 1.0, 1.0);   //这句的作用是？
+		float4 clipPos = float4(v.uv * 2 - 1.0, 1.0, 1.0);   //*2 - 1.0, 从屏幕空间的[0,1]转换到[-1,1]
 		float4 viewRay = mul(_InverseProjectionMatrix, clipPos);  //将屏幕像素对应在摄像机远平面（Far plane）的点转换到剪裁空间（Clip space）。
 		o.viewRay = viewRay.xyz / viewRay.w;
 		return o;
@@ -72,7 +72,7 @@ Shader "AO/ScreenSpaceAOEffect"
 		float4 cdn = tex2D(_CameraDepthNormalsTexture, i.uv);
 		DecodeDepthNormal(cdn, linear01Depth, viewNormal); //视角空间下[0,1]范围内的线性深度值和视角空间下的法线信息
 		float3 viewPos = linear01Depth * i.viewRay;	  //得到着色点在视角空间的位置
-		viewNormal = normalize(viewNormal) * float3(1, 1, -1);   //？
+		viewNormal = normalize(viewNormal) * float3(1, 1, -1);   //因为法线的z方向和相机的方向相反，所以需要乘-1置反
 
 		int sampleCount = _SampleKernelCount;
 
@@ -81,11 +81,12 @@ Shader "AO/ScreenSpaceAOEffect"
 		{
 			float3 randomVec = _SampleKernelArray[i].xyz;   //x = [-1,1], y = [-1,1], z = [0,1]
 			//如果随机点的位置与法线反向，那么将随机方向取反，使之保证在法线半球
-			randomVec = dot(randomVec, viewNormal) < 0 ? -randomVec : randomVec;
+			randomVec = dot(randomVec, viewNormal) < 0 ? -randomVec : randomVec; //没有使用Tangent进行旋转来保证采样点在法线半球，而是直接使用屏幕空间的法线与随机采样方向点乘，
+												//如果二者方向相反，说明没在同一半球，再将其取反
 
 			float3 randomPos = viewPos + randomVec * _SampleKeneralRadius;   //半球上采样
 			float3 rclipPos = mul((float3x3)unity_CameraProjection, randomPos);   //从视角空间转换到齐次裁剪空间
-			float2 rscreenPos = (rclipPos.xy / rclipPos.z) * 0.5 + 0.5;    //[0,1]
+			float2 rscreenPos = (rclipPos.xy / rclipPos.z) * 0.5 + 0.5;    //从[-1,1]到[0,1]
 
 			float randomDepth;
 			float3 randomNormal;
