@@ -75,7 +75,7 @@ public class ScreenSpaceAOEffect : MonoBehaviour
         ssaoMaterial.SetVector("_BlurRadius", new Vector4(0, BlurRadius, 0, 0));
         if (OnlyShowAO)
         {
-            Graphics.Blit(blurRT, destination, ssaoMaterial, (int)SSAOPassName.BilateralFilter);
+            Graphics.Blit(blurRT, destination, ssaoMaterial, (int)SSAOPassName.BilateralFilter);  //双边滤波Pass合计调用两次，卷积核由横向和纵向组成
         }
         else
         {
